@@ -6,23 +6,17 @@ const bodyParser = require('body-parser');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
 app.use(cors());
 app.use(bodyParser.json());
 
-// Mock Database (Replace this with MongoDB later)
 const USERS = [
-    { email: "user@test.com", password: "password123", name: "John Doe", balance: 5000.00 }
+    { email: "user@test.com", password: "password123", name: "Moath Abusheikha", balance: 5000.00 }
 ];
 
-// --- Routes ---
-
-// 1. Root Route (Used by Render to check health)
 app.get('/', (req, res) => {
     res.send('Banking App Backend is Running!');
 });
 
-// 2. Login Route
 app.post('/api/login', (req, res) => {
     const { email, password } = req.body;
     console.log(`Attempting login for: ${email}`);
@@ -47,7 +41,6 @@ app.post('/api/login', (req, res) => {
     }
 });
 
-// Start Server
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
