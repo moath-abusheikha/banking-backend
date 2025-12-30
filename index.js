@@ -23,6 +23,14 @@ const userSchema = new mongoose.Schema({
     balance: { type: Number, default: 0.00 }
 });
 
+const notificationSchema = new mongoose.Schema({
+    userEmail: { type: String, required: true }, // Who is this notification for?
+    message: { type: String, required: true },
+    date: { type: Date, default: Date.now }
+});
+
+const Notification = mongoose.model('Notification', notificationSchema);
+
 const User = mongoose.model('User', userSchema);
 
 app.get('/', (req, res) => {
@@ -86,10 +94,14 @@ app.post('/api/transfer', async (req, res) => {
 
         sender.balance -= transferAmount;
         recipient.balance += transferAmount;
-
+		
+		const newNotification = new Notification({
+			userEmail: recipientEmail,
+			message: `You received $${transferAmount} from ${sender.name}`
+			});
         await sender.save();
         await recipient.save();
-
+		await newNotification.save(); 
         await session.commitTransaction();
         
         res.json({
@@ -123,6 +135,15 @@ app.post('/api/user', async (req, res) => {
         }
     } catch (error) {
         res.status(500).json({ success: false, message: "Server error" });
+    }
+});
+app.post('/api/notifications', async (req, res) => {
+    const { email } = req.body;
+    try {
+        const notifications = await Notification.find({ userEmail: email }).sort({ date: -1 });
+        res.json({ success: true, notifications });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error fetching notifications" });
     }
 });
 
