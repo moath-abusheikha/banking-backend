@@ -24,9 +24,10 @@ const userSchema = new mongoose.Schema({
 });
 
 const notificationSchema = new mongoose.Schema({
-    userEmail: { type: String, required: true }, // Who is this notification for?
+    userEmail: { type: String, required: true }, 
     message: { type: String, required: true },
-    date: { type: Date, default: Date.now }
+    date: { type: Date, default: Date.now },
+	isRead: {type: Boolean, default:false}
 });
 
 const Notification = mongoose.model('Notification', notificationSchema);
@@ -74,7 +75,7 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.post('/api/transfer', async (req, res) => {
-    const { senderEmail, recipientEmail, amount } = req.body;
+    const { senderEmail, recipientEmail, amount, isRead } = req.body;
     const transferAmount = parseFloat(amount);
 
     if (isNaN(transferAmount) || transferAmount <= 0) {
@@ -87,7 +88,7 @@ app.post('/api/transfer', async (req, res) => {
     try {
         const sender = await User.findOne({ email: senderEmail }).session(session);
         const recipient = await User.findOne({ email: recipientEmail }).session(session);
-
+		
         if (!sender) throw new Error("Sender not found");
         if (!recipient) throw new Error("Recipient not found");
         if (sender.balance < transferAmount) throw new Error("Insufficient funds");
@@ -97,7 +98,8 @@ app.post('/api/transfer', async (req, res) => {
 		
 		const newNotification = new Notification({
 			userEmail: recipientEmail,
-			message: `You received $${transferAmount} from ${sender.name}`
+			message: `You received $${transferAmount} from ${sender.name}`,
+			isRead: isRead
 			});
         await sender.save();
         await recipient.save();
