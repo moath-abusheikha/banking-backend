@@ -105,6 +105,26 @@ app.post('/api/transfer', async (req, res) => {
         session.endSession();
     }
 });
+app.post('/api/user', async (req, res) => {
+    const { email } = req.body;
+    try {
+        const user = await User.findOne({ email });
+        if (user) {
+            res.json({
+                success: true,
+                user: {
+                    name: user.name,
+                    email: user.email,
+                    balance: user.balance
+                }
+            });
+        } else {
+            res.status(404).json({ success: false, message: "User not found" });
+        }
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+});
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
