@@ -1,7 +1,7 @@
 {
   "name": "banking_backend",
   "version": "1.0.0",
-  "main": "index.js", 
+  "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
@@ -9,6 +9,9 @@
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.1.0",
+    "npm": "^11.7.0"
   }
 }

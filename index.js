@@ -2,52 +2,121 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const mongoose = require('mongoose'); // Import Mongoose
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
 app.use(cors());
 app.use(bodyParser.json());
 
-// Mock Database (Replace this with MongoDB later)
-const USERS = [
-    { email: "user@test.com", password: "password123", name: "John Doe", balance: 5000.00 }
-];
+mongoose.connect('mongodb+srv://moath:moath85@cluster0.1uqgesm.mongodb.net/moath_bank_db?retryWrites=true&w=majority')
+    .then(() => console.log('Connected to MongoDB'))
+    .catch(err => console.error('Could not connect to MongoDB', err));
 
-// --- Routes ---
-
-// 1. Root Route (Used by Render to check health)
-app.get('/', (req, res) => {
-    res.send('Banking App Backend is Running!');
+const userSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: true }, 
+    balance: { type: Number, default: 0.00 }
 });
 
-// 2. Login Route
-app.post('/api/login', (req, res) => {
-    const { email, password } = req.body;
-    console.log(`Attempting login for: ${email}`);
+const User = mongoose.model('User', userSchema);
 
-    const user = USERS.find(u => u.email === email && u.password === password);
 
-    if (user) {
-        res.status(200).json({
-            success: true,
-            message: "Login successful",
-            user: {
-                name: user.name,
-                email: user.email,
-                balance: user.balance
-            }
+app.post('/api/signup', async (req, res) => {
+    const { name, email, password } = req.body;
+
+    try {
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({ success: false, message: "Email already in use" });
+        }
+
+        const newUser = new User({ 
+            name, 
+            email, 
+            password, 
+            balance: 1000.00 
         });
-    } else {
-        res.status(401).json({
-            success: false,
-            message: "Invalid email or password"
-        });
+        
+        await newUser.save();
+
+        res.status(201).json({ success: true, message: "User created successfully" });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error creating user" });
     }
 });
 
-// Start Server
+app.post('/api/login', async (req, res) => {
+    const { email, password } = req.body;
+
+    try {
+        const user = await User.findOne({ email, password });
+        
+        if (user) {
+            res.status(200).json({
+                success: true,
+                message: "Login successful",
+                user: {
+                    name: user.name,
+                    email: user.email,
+                    balance: user.balance
+                }
+            });
+        } else {
+            res.status(401).json({ success: false, message: "Invalid email or password" });
+        }
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+});
+
+app.post('/api/transfer', async (req, res) => {
+    const { senderEmail, recipientEmail, amount } = req.body;
+    const transferAmount = parseFloat(amount);
+
+    if (isNaN(transferAmount) || transferAmount <= 0) {
+        return res.status(400).json({ success: false, message: "Invalid amount" });
+    }
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const sender = await User.findOne({ email: senderEmail }).session(session);
+        const recipient = await User.findOne({ email: recipientEmail }).session(session);
+
+        if (!sender) {
+            throw new Error("Sender not found");
+        }
+        if (!recipient) {
+            throw new Error("Recipient not found");
+        }
+        if (sender.balance < transferAmount) {
+            throw new Error("Insufficient funds");
+        }
+        sender.balance -= transferAmount;
+        recipient.balance += transferAmount;
+
+        await sender.save();
+        await recipient.save();
+
+        await session.commitTransaction();
+        
+        res.json({
+            success: true,
+            message: "Transfer successful",
+            newBalance: sender.balance
+        });
+
+    } catch (error) {
+        await session.abortTransaction();
+        res.status(400).json({ success: false, message: error.message });
+    } finally {
+        session.endSession();
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
