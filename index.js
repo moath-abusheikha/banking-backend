@@ -27,7 +27,7 @@ const notificationSchema = new mongoose.Schema({
     userEmail: { type: String, required: true }, 
     message: { type: String, required: true },
     date: { type: Date, default: Date.now },
-	isRead: {type: Boolean, default:false}
+    isRead: {type: Boolean, default:false}
 });
 
 const transactionSchema = new mongoose.Schema({
@@ -39,26 +39,9 @@ const transactionSchema = new mongoose.Schema({
 });
 
 const Transaction = mongoose.model('Transaction', transactionSchema);
-
 const Notification = mongoose.model('Notification', notificationSchema);
-
 const User = mongoose.model('User', userSchema);
 
-const senderTx = new Transaction({
-    email: senderEmail,
-    type: 'Transfer',
-    amount: -transferAmount,
-    description: `Transfer to ${recipient.name}`
-});
-const recipientTx = new Transaction({
-    email: recipientEmail,
-    type: 'Transfer',
-    amount: transferAmount,
-    description: `Received from ${sender.name}`
-});
-
-await senderTx.save();
-await recipientTx.save();
 
 app.get('/', (req, res) => {
     res.send('Banking App Backend is Running!');
@@ -78,6 +61,7 @@ app.post('/api/signup', async (req, res) => {
         res.status(500).json({ success: false, message: "Error creating user" });
     }
 });
+
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     try {
@@ -101,7 +85,7 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.post('/api/transfer', async (req, res) => {
-    const { senderEmail, recipientEmail, amount, isRead } = req.body;
+    const { senderEmail, recipientEmail, amount } = req.body; 
     const transferAmount = parseFloat(amount);
 
     if (isNaN(transferAmount) || transferAmount <= 0) {
@@ -114,22 +98,38 @@ app.post('/api/transfer', async (req, res) => {
     try {
         const sender = await User.findOne({ email: senderEmail }).session(session);
         const recipient = await User.findOne({ email: recipientEmail }).session(session);
-		
+        
         if (!sender) throw new Error("Sender not found");
         if (!recipient) throw new Error("Recipient not found");
         if (sender.balance < transferAmount) throw new Error("Insufficient funds");
-
         sender.balance -= transferAmount;
         recipient.balance += transferAmount;
-		
-		const newNotification = new Notification({
-			userEmail: recipientEmail,
-			message: `You received $${transferAmount} from ${sender.name}`,
-			isRead: isRead
-			});
+        const newNotification = new Notification({
+            userEmail: recipientEmail,
+            message: `You received $${transferAmount} from ${sender.name}`,
+            isRead: false
+        });
+
+        const senderTx = new Transaction({
+            email: senderEmail,
+            type: 'Transfer',
+            amount: -transferAmount,
+            description: `Transfer to ${recipient.name}`
+        });
+
+        const recipientTx = new Transaction({
+            email: recipientEmail,
+            type: 'Transfer',
+            amount: transferAmount,
+            description: `Received from ${sender.name}`
+        });
+
         await sender.save();
         await recipient.save();
-		await newNotification.save(); 
+        await newNotification.save(); 
+        await senderTx.save();    
+        await recipientTx.save();
+
         await session.commitTransaction();
         
         res.json({
@@ -145,6 +145,7 @@ app.post('/api/transfer', async (req, res) => {
         session.endSession();
     }
 });
+
 app.post('/api/user', async (req, res) => {
     const { email } = req.body;
     try {
@@ -165,6 +166,7 @@ app.post('/api/user', async (req, res) => {
         res.status(500).json({ success: false, message: "Server error" });
     }
 });
+
 app.post('/api/notifications', async (req, res) => {
     const { email } = req.body;
     try {
@@ -174,6 +176,7 @@ app.post('/api/notifications', async (req, res) => {
         res.status(500).json({ success: false, message: "Error fetching notifications" });
     }
 });
+
 app.post('/api/notifications/read', async (req, res) => {
     const { notificationId } = req.body;
     try {
@@ -183,36 +186,39 @@ app.post('/api/notifications/read', async (req, res) => {
         res.status(500).json({ success: false, message: "Error updating notification" });
     }
 });
-app.post('/api/paybill', async (req, res) => {
-	const { email, biller, amount } = req.body;
-	const billAmount = parseFloat(amount);
 
-	if (isNaN(billAmount) || billAmount <=0) {
-		return res.status(400).json({ success: false, message: "Invalid amount" });
-	}
-	try {
-		const user = await User.findOne({ email });
-		if (!user) return res.status(404).json({ success: false, message: "User not found" });
-		if (user.balance < billAmount) return res.status(400).json({ success: false, message: "Insufficient funds" });
-		user.balance -= billAmount;
-		await user.save();		
-		const billTx = new Transaction({
-			email: email,
-			type: 'Bill Payment',
-			amount: -billAmount,
-			description: `Paid to ${biller}`
-			});
-			await billTx.save();
-			res.json({
-				success: true,
-				message: `Paid $${billAmount} to ${biller}`,
-				newBalance: user.balance
-				});
-		} catch (error) {
-				res.status(500).json({ success: false, message: "Transaction failed" });
-				}
-	}
-);
+app.post('/api/paybill', async (req, res) => {
+    const { email, biller, amount } = req.body;
+    const billAmount = parseFloat(amount);
+
+    if (isNaN(billAmount) || billAmount <= 0) {
+        return res.status(400).json({ success: false, message: "Invalid amount" });
+    }
+    try {
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ success: false, message: "User not found" });
+        if (user.balance < billAmount) return res.status(400).json({ success: false, message: "Insufficient funds" });
+        
+        user.balance -= billAmount;
+        await user.save();      
+        
+        const billTx = new Transaction({
+            email: email,
+            type: 'Bill Payment',
+            amount: -billAmount,
+            description: `Paid to ${biller}`
+        });
+        await billTx.save();
+        
+        res.json({
+            success: true,
+            message: `Paid $${billAmount} to ${biller}`,
+            newBalance: user.balance
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Transaction failed" });
+    }
+});
 
 app.post('/api/transactions', async (req, res) => {
     const { email } = req.body;
