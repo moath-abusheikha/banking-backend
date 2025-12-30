@@ -230,6 +230,38 @@ app.post('/api/transactions', async (req, res) => {
     }
 });
 
+app.post('/api/deposit', async (req, res) => {
+    const { email, amount, cardLast4 } = req.body;
+    const depositAmount = parseFloat(amount);
+
+    if (isNaN(depositAmount) || depositAmount <= 0) {
+        return res.status(400).json({ success: false, message: "Invalid amount" });
+    }
+
+    try {
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ success: false, message: "User not found" });
+        user.balance += depositAmount;
+        await user.save();
+        const depositTx = new Transaction({
+            email: email,
+            type: 'Deposit',
+            amount: depositAmount, 
+            description: `Top up via Card **** ${cardLast4}`
+        });
+        await depositTx.save();
+
+        res.json({
+            success: true,
+            message: "Deposit successful",
+            newBalance: user.balance
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Deposit failed" });
+    }
+});
+
+
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
