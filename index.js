@@ -23,6 +23,19 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 
+const USERS = [
+    { email: "user@test.com", password: "password123", name: "Moath Abusheikha", balance: 5000.00 }
+];
+
+app.get('/', (req, res) => {
+    res.send('Banking App Backend is Running!');
+});
+
+app.post('/api/login', (req, res) => {
+    const { email, password } = req.body;
+    console.log(`Attempting login for: ${email}`);
+
+
 
 app.post('/api/signup', async (req, res) => {
     const { name, email, password } = req.body;
