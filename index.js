@@ -148,6 +148,15 @@ app.post('/api/notifications', async (req, res) => {
         res.status(500).json({ success: false, message: "Error fetching notifications" });
     }
 });
+app.post('/api/notifications/read', async (req, res) => {
+    const { notificationId } = req.body;
+    try {
+        await Notification.findByIdAndUpdate(notificationId, { isRead: true });
+        res.json({ success: true, message: "Notification marked as read" });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error updating notification" });
+    }
+});
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
