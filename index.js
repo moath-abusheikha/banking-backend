@@ -30,9 +30,35 @@ const notificationSchema = new mongoose.Schema({
 	isRead: {type: Boolean, default:false}
 });
 
+const transactionSchema = new mongoose.Schema({
+    email: { type: String, required: true }, 
+    type: { type: String, required: true },
+    amount: { type: Number, required: true },
+    description: { type: String }, 
+    date: { type: Date, default: Date.now }
+});
+
+const Transaction = mongoose.model('Transaction', transactionSchema);
+
 const Notification = mongoose.model('Notification', notificationSchema);
 
 const User = mongoose.model('User', userSchema);
+
+const senderTx = new Transaction({
+    email: senderEmail,
+    type: 'Transfer',
+    amount: -transferAmount,
+    description: `Transfer to ${recipient.name}`
+});
+const recipientTx = new Transaction({
+    email: recipientEmail,
+    type: 'Transfer',
+    amount: transferAmount,
+    description: `Received from ${sender.name}`
+});
+
+await senderTx.save();
+await recipientTx.save();
 
 app.get('/', (req, res) => {
     res.send('Banking App Backend is Running!');
@@ -158,30 +184,43 @@ app.post('/api/notifications/read', async (req, res) => {
     }
 });
 app.post('/api/paybill', async (req, res) => {
-    const { email, biller, amount } = req.body;
-    const billAmount = parseFloat(amount);
+	const { email, biller, amount } = req.body;
+	const billAmount = parseFloat(amount);
 
-    if (isNaN(billAmount) || billAmount <=0) {
-        return res.status(400).json({ success: false, message: "Invalid amount" });
-    }
+	if (isNaN(billAmount) || billAmount <=0) {
+		return res.status(400).json({ success: false, message: "Invalid amount" });
+	}
+	try {
+		const user = await User.findOne({ email });
+		if (!user) return res.status(404).json({ success: false, message: "User not found" });
+		if (user.balance < billAmount) return res.status(400).json({ success: false, message: "Insufficient funds" });
+		user.balance -= billAmount;
+		await user.save();		
+		const billTx = new Transaction({
+			email: email,
+			type: 'Bill Payment',
+			amount: -billAmount,
+			description: `Paid to ${biller}`
+			});
+			await billTx.save();
+			res.json({
+				success: true,
+				message: `Paid $${billAmount} to ${biller}`,
+				newBalance: user.balance
+				});
+		} catch (error) {
+				res.status(500).json({ success: false, message: "Transaction failed" });
+				}
+	}
+);
 
+app.post('/api/transactions', async (req, res) => {
+    const { email } = req.body;
     try {
-        const user = await User.findOne({ email });
-
-        if (!user) return res.status(404).json({ success: false, message: "User not found" });
-        if (user.balance < billAmount) return res.status(400).json({ success: false, message: "Insufficient funds" });
-
-        // Deduct money
-        user.balance -= billAmount;
-        await user.save();
-
-        res.json({
-            success: true,
-            message: `Paid $${billAmount} to ${biller}`,
-            newBalance: user.balance
-        });
+        const transactions = await Transaction.find({ email }).sort({ date: -1 });
+        res.json({ success: true, transactions });
     } catch (error) {
-        res.status(500).json({ success: false, message: "Transaction failed" });
+        res.status(500).json({ success: false, message: "Error fetching history" });
     }
 });
 
