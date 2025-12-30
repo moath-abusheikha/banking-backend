@@ -157,6 +157,33 @@ app.post('/api/notifications/read', async (req, res) => {
         res.status(500).json({ success: false, message: "Error updating notification" });
     }
 });
+app.post('/api/paybill', async (req, res) => {
+    const { email, biller, amount } = req.body;
+    const billAmount = parseFloat(amount);
+
+    if (isNaN(billAmount) || billAmount <=0) {
+        return res.status(400).json({ success: false, message: "Invalid amount" });
+    }
+
+    try {
+        const user = await User.findOne({ email });
+
+        if (!user) return res.status(404).json({ success: false, message: "User not found" });
+        if (user.balance < billAmount) return res.status(400).json({ success: false, message: "Insufficient funds" });
+
+        // Deduct money
+        user.balance -= billAmount;
+        await user.save();
+
+        res.json({
+            success: true,
+            message: `Paid $${billAmount} to ${biller}`,
+            newBalance: user.balance
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Transaction failed" });
+    }
+});
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
