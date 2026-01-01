@@ -261,6 +261,46 @@ app.post('/api/deposit', async (req, res) => {
     }
 });
 
+app.post('/api/withdraw', async (req, res) => {
+    const { email, amount } = req.body;
+    const withdrawAmount = parseFloat(amount);
+
+    if (isNaN(withdrawAmount) || withdrawAmount <= 0) {
+        return res.status(400).json({ success: false, message: "Invalid amount" });
+    }
+
+    try {
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+        if (user.balance < withdrawAmount) {
+            return res.status(400).json({ success: false, message: "Insufficient funds" });
+        }
+
+        // 1. Deduct Money
+        user.balance -= withdrawAmount;
+        await user.save();
+
+        // 2. Record Transaction
+        const withdrawTx = new Transaction({
+            email: email,
+            type: 'Withdraw',
+            amount: -withdrawAmount, // Negative amount
+            description: `ATM Withdrawal`
+        });
+        await withdrawTx.save();
+
+        res.json({
+            success: true,
+            message: "Withdrawal successful",
+            newBalance: user.balance
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Withdrawal failed" });
+    }
+});
+
+
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
