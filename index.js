@@ -55,7 +55,7 @@ app.post('/api/signup', async (req, res) => {
             return res.status(400).json({ success: false, message: "Email already in use" });
         }
 		const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = new User({ name, email, hashedPassword, balance: 1000.00 });
+        const newUser = new User({ name, email, password:hashedPassword, balance: 1000.00 });
         await newUser.save();
         res.status(201).json({ success: true, message: "User created successfully" });
     } catch (error) {
